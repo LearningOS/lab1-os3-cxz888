@@ -53,7 +53,7 @@ pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
     debug!("syscall task info");
     unsafe {
         (*ti).status = TaskStatus::Running;
-        (*ti).syscall_times[SYSCALL_TASK_INFO] += 1;
+        task::set_syscall_times(&mut (*ti).syscall_times);
         (*ti).time = timer::get_time_ms() - task::get_start_time();
     }
     0

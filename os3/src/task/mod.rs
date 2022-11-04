@@ -4,7 +4,12 @@ use lazy_static::lazy_static;
 
 pub use self::task::TaskStatus;
 use self::{context::TaskContext, switch::__switch, task::TaskControlBlock};
-use crate::{config::MAX_APP_NUM, loader, sync::UPSafeCell, timer};
+use crate::{
+    config::{MAX_APP_NUM, MAX_SYSCALL_NUM},
+    loader,
+    sync::UPSafeCell,
+    timer,
+};
 
 pub mod context;
 pub mod switch;
@@ -12,25 +17,17 @@ mod task;
 
 lazy_static! {
     static ref TASK_MANAGER: TaskManager = {
-        let num_app =loader::get_num_app();
+        let num_app = loader::get_num_app();
         const UNINIT_TCB: TaskControlBlock = TaskControlBlock::uninit();
-        // let mut tasks = [UNINIT_TCB; MAX_APP_NUM];
-        // 初始化应用。
-        // for (i, t) in tasks.iter_mut().enumerate().take(num_app) {
-        //     t.task_ctx=TaskContext::goto_restore(loader::init_app_ctx(i));
-        //     t.task_status=TaskStatus::Ready;
-        //     t.task_start_time=timer::get_time_ms();
-        // }
-        let task_manager=
-            TaskManager {
-                num_app,
-                inner: unsafe {
-                    UPSafeCell::new(TaskManagerInner {
-                        tasks: [UNINIT_TCB; MAX_APP_NUM],
-                        current_task: 0,
-                    })
-                },
-            };
+        let task_manager = TaskManager {
+            num_app,
+            inner: unsafe {
+                UPSafeCell::new(TaskManagerInner {
+                    tasks: [UNINIT_TCB; MAX_APP_NUM],
+                    current_task: 0,
+                })
+            },
+        };
         for (i, t) in task_manager
             .inner
             .exclusive_access()
@@ -141,4 +138,10 @@ pub fn increment_syscall_times(syscall_id: usize) {
     let mut inner = TASK_MANAGER.inner.exclusive_access();
     let curr_task = inner.current_task;
     inner.tasks[curr_task].task_syscall_times[syscall_id] += 1;
+}
+
+pub fn set_syscall_times(dst: &mut [u32; MAX_SYSCALL_NUM]) {
+    let inner = TASK_MANAGER.inner.exclusive_access();
+    let curr_task = inner.current_task;
+    dst.copy_from_slice(&inner.tasks[curr_task].task_syscall_times)
 }
