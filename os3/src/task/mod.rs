@@ -138,7 +138,7 @@ pub fn get_start_time() -> usize {
 
 /// 假定 syscall_id < MAX_SYSCALL_NUM
 pub fn increment_syscall_times(syscall_id: usize) {
-    // let mut inner = TASK_MANAGER.inner.exclusive_access();
-    // let curr_task = inner.current_task;
-    // inner.tasks[curr_task].task_syscall_times[syscall_id] += 1;
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let curr_task = inner.current_task;
+    inner.tasks[curr_task].task_syscall_times[syscall_id] += 1;
 }
