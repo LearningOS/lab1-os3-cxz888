@@ -1,10 +1,14 @@
 mod context;
 
-use crate::{syscall::syscall, task::exit_current_and_run_next};
+use crate::{
+    syscall::syscall,
+    task::{self, suspend_current_and_run_next},
+    timer,
+};
 use riscv::register::{
     mtvec::TrapMode,
-    scause::{self, Exception, Trap},
-    stval, stvec,
+    scause::{self, Exception, Interrupt, Trap},
+    sie, stval, stvec,
 };
 
 pub use context::TrapContext;
@@ -24,6 +28,7 @@ pub fn init() {
 pub fn trap_handler(ctx: &mut TrapContext) -> &mut TrapContext {
     let scause = scause::read();
     let stval = stval::read();
+    // debug!("{}", stval);
     match scause.cause() {
         Trap::Exception(Exception::UserEnvCall) => {
             ctx.sepc += 4;
@@ -31,11 +36,15 @@ pub fn trap_handler(ctx: &mut TrapContext) -> &mut TrapContext {
         }
         Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::StorePageFault) => {
             error!("[kernel] PageFault in application, core dumped.");
-            exit_current_and_run_next();
+            task::exit_current_and_run_next();
         }
         Trap::Exception(Exception::IllegalInstruction) => {
             error!("[kernel] IllegalInstruction in application, core dumped.");
-            exit_current_and_run_next();
+            task::exit_current_and_run_next();
+        }
+        Trap::Interrupt(Interrupt::SupervisorTimer) => {
+            timer::set_next_trigger();
+            suspend_current_and_run_next();
         }
         _ => {
             panic!(
@@ -46,4 +55,9 @@ pub fn trap_handler(ctx: &mut TrapContext) -> &mut TrapContext {
         }
     }
     ctx
+}
+
+// 这里也许会导致嵌套中断？
+pub fn enable_timer_interrupt() {
+    unsafe { sie::set_stimer() }
 }

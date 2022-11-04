@@ -1,15 +1,10 @@
+use core::mem;
+
 use lazy_static::lazy_static;
 
-use self::{
-    context::TaskContext,
-    switch::__switch,
-    task::{TaskControlBlock, TaskStatus},
-};
-use crate::{
-    config::MAX_APP_NUM,
-    loader::{get_num_app, init_app_ctx},
-    sync::UPSafeCell,
-};
+pub use self::task::TaskStatus;
+use self::{context::TaskContext, switch::__switch, task::TaskControlBlock};
+use crate::{config::MAX_APP_NUM, loader, sync::UPSafeCell, timer};
 
 pub mod context;
 pub mod switch;
@@ -17,23 +12,38 @@ mod task;
 
 lazy_static! {
     static ref TASK_MANAGER: TaskManager = {
-        let num_app = get_num_app();
+        let num_app =loader::get_num_app();
         const UNINIT_TCB: TaskControlBlock = TaskControlBlock::uninit();
-        let mut tasks = [UNINIT_TCB; MAX_APP_NUM];
+        // let mut tasks = [UNINIT_TCB; MAX_APP_NUM];
         // 初始化应用。
-        for (i, t) in tasks.iter_mut().enumerate().take(num_app) {
-            t.task_ctx=TaskContext::goto_restore(init_app_ctx(i));
-            t.task_status=TaskStatus::Ready;
+        // for (i, t) in tasks.iter_mut().enumerate().take(num_app) {
+        //     t.task_ctx=TaskContext::goto_restore(loader::init_app_ctx(i));
+        //     t.task_status=TaskStatus::Ready;
+        //     t.task_start_time=timer::get_time_ms();
+        // }
+        let task_manager=
+            TaskManager {
+                num_app,
+                inner: unsafe {
+                    UPSafeCell::new(TaskManagerInner {
+                        tasks: [UNINIT_TCB; MAX_APP_NUM],
+                        current_task: 0,
+                    })
+                },
+            };
+        for (i, t) in task_manager
+            .inner
+            .exclusive_access()
+            .tasks
+            .iter_mut()
+            .enumerate()
+            .take(num_app)
+        {
+            t.task_ctx = TaskContext::goto_restore(loader::init_app_ctx(i));
+            t.task_status = TaskStatus::Ready;
+            t.task_start_time = timer::get_time_ms();
         }
-        TaskManager {
-            num_app,
-            inner: unsafe {
-                UPSafeCell::new(TaskManagerInner {
-                    tasks,
-                    current_task: 0,
-                })
-            },
-        }
+        task_manager
     };
 }
 
@@ -95,6 +105,10 @@ impl TaskManager {
         }
         unreachable!();
     }
+    pub fn get_start_time(&self) -> usize {
+        let inner = self.inner.exclusive_access();
+        inner.tasks[inner.current_task].task_start_time
+    }
 }
 
 pub fn suspend_current_and_run_next() {
@@ -108,5 +122,23 @@ pub fn exit_current_and_run_next() {
 }
 
 pub fn run_first_task() {
+    debug!(
+        "Address of task manager: {:p} {:p};size: {};size of TCB: {}",
+        &TASK_MANAGER.inner as *const _,
+        &TASK_MANAGER.num_app as *const _,
+        mem::size_of_val(&TASK_MANAGER.inner),
+        mem::size_of::<TaskControlBlock>()
+    );
     TASK_MANAGER.run_first_task()
+}
+
+pub fn get_start_time() -> usize {
+    TASK_MANAGER.get_start_time()
+}
+
+/// 假定 syscall_id < MAX_SYSCALL_NUM
+pub fn increment_syscall_times(syscall_id: usize) {
+    // let mut inner = TASK_MANAGER.inner.exclusive_access();
+    // let curr_task = inner.current_task;
+    // inner.tasks[curr_task].task_syscall_times[syscall_id] += 1;
 }

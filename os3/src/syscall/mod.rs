@@ -1,3 +1,5 @@
+use crate::task::increment_syscall_times;
+
 mod fs;
 mod process;
 
@@ -11,7 +13,7 @@ pub const SYSCALL_WRITE: usize = 64;
 pub const SYSCALL_EXIT: usize = 93;
 // pub const SYSCALL_SLEEP: usize = 101;
 pub const SYSCALL_YIELD: usize = 124;
-// pub const SYSCALL_GETTIMEOFDAY: usize = 169;
+pub const SYSCALL_GETTIMEOFDAY: usize = 169;
 // pub const SYSCALL_GETPID: usize = 172;
 // pub const SYSCALL_GETTID: usize = 178;
 // pub const SYSCALL_FORK: usize = 220;
@@ -25,7 +27,7 @@ pub const SYSCALL_YIELD: usize = 124;
 // pub const SYSCALL_MAIL_WRITE: usize = 402;
 // pub const SYSCALL_DUP: usize = 24;
 // pub const SYSCALL_PIPE: usize = 59;
-// pub const SYSCALL_TASK_INFO: usize = 410;
+pub const SYSCALL_TASK_INFO: usize = 410;
 // pub const SYSCALL_THREAD_CREATE: usize = 460;
 // pub const SYSCALL_WAITTID: usize = 462;
 // pub const SYSCALL_MUTEX_CREATE: usize = 463;
@@ -40,10 +42,13 @@ pub const SYSCALL_YIELD: usize = 124;
 // pub const SYSCALL_CONDVAR_WAIT: usize = 473;
 
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
+    increment_syscall_times(syscall_id);
     match syscall_id {
         SYSCALL_WRITE => fs::sys_write(args[0], args[1] as *const u8, args[2]),
         SYSCALL_EXIT => process::sys_exit(args[0] as i32),
         SYSCALL_YIELD => process::sys_yield(),
+        SYSCALL_GETTIMEOFDAY => process::sys_get_time(args[0] as _, args[1]),
+        SYSCALL_TASK_INFO => process::sys_task_info(args[0] as _),
         _ => {
             error!("Unsupported syscall_id: {}", syscall_id);
             process::sys_exit(-1);
