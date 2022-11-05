@@ -43,9 +43,11 @@ pub fn rust_main() -> ! {
     println!("[kernel] Hello, world!");
     heap_alloc::init_heap();
     trap::init();
+    debug!("[kernel] load apps");
     loader::load_apps();
     trap::enable_timer_interrupt();
     timer::set_next_trigger();
+    debug!("[kernel] start running");
     task::run_first_task();
     panic!("Unreachable in rust_main!");
 }
