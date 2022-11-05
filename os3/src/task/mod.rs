@@ -66,7 +66,7 @@ impl TaskManager {
         let is_ready = |&id: &usize| inner.tasks[id].task_status == TaskStatus::Ready;
         (current + 1..self.num_app)
             .find(is_ready)
-            .or((0..current).find(is_ready))
+            .or((0..=current).find(is_ready))
     }
     fn run_next_task(&self) {
         if let Some(next) = self.next_ready_task() {
